@@ -6,13 +6,13 @@ import pandas as pd
 import numpy as np
 from dash import dash_table
 from matplotlib import pyplot as plt
+
 data = {
     'rec_name': [1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3],
     'trk_id': [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 6],
     'class_name': ['x', 'd', 'sd', 'd', 'x', 'x', 'd', 'sd', 'd', 'x', 'x', 'd', 'sd', 'd', 'x', 'd']
 }
 df_summary = pd.DataFrame(data)
-# df_summary['trk_id_class_name'] = df_summary['trk_id'].astype(str) + '_' + df_summary['class_name']
 
 # Constants
 ALL_TRK_IDS = df_summary.trk_id.tolist()
@@ -116,9 +116,10 @@ def create_dash_app(config):
     Create a Dash web application.
     """
     app = dash.Dash(__name__)
+    print('Creating Dash app')
     df_columns = load_data(ALL_TRK_IDS[0], ALL_REC_NAMES[0]).columns
     empty_df = pd.DataFrame(columns=df_columns)
-
+    
     app.layout = html.Div([
         html.Div([
             dcc.Dropdown(
@@ -355,8 +356,9 @@ def main():
     }
 
     app = create_dash_app(config)
-    app.run_server(debug=True)
+    app.run_server(debug=False)
 
 
 if __name__ == '__main__':
     main()
+    
