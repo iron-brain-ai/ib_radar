@@ -80,8 +80,8 @@ def generate_heatmap_figure(bsn, dwell_id, channel_id, trk_id, rec_name):
         heatmap_data[1::2, 1::2] = 1
 
     layout = go.Layout(
-        xaxis=dict(title='X-axis'),
-        yaxis=dict(title='Y-axis'),
+        xaxis=dict(title='Doppler'),
+        yaxis=dict(title='Range'),
     )
     heatmap_trace = go.Heatmap(z=heatmap_data, colorscale='Viridis')
 
@@ -116,10 +116,11 @@ def create_dash_app(config):
     Create a Dash web application.
     """
     app = dash.Dash(__name__)
+    df_transposed = pd.DataFrame({'Attribute': [None], 'Value': [None]})
     print('Creating Dash app')
-    df_columns = load_data(ALL_TRK_IDS[0], ALL_REC_NAMES[0]).columns
-    empty_df = pd.DataFrame(columns=df_columns)
-    
+    columns = [{'name': col, 'id': col} for col in df_transposed.columns],
+    data = df_transposed.to_dict('records')
+
     app.layout = html.Div([
         html.Div([
             dcc.Dropdown(
@@ -147,24 +148,25 @@ def create_dash_app(config):
             dcc.Graph(id='2d-multigraph'),
         ], style={'width': '49%', 'display': 'inline-block'}),
 
-        html.Div([
-            dash_table.DataTable(
-                id='table',
-                columns=[{'name': col, 'id': col} for col in empty_df.columns],
-                data=empty_df.to_dict('records'),
-                page_current=0,
-                page_size=2,
-                style_table={'height': '100px', 'overflowY': 'auto'}
-            ),
-        ], style={'width': '100%', 'display': 'inline-block'}),
 
         html.Div([
             dcc.Graph(id='heatmap'),
-        ], style={'width': '30%', 'display': 'inline-block', 'margin-left': '20%'}),
+            dcc.Graph(id='spectrogram'),
+        ], style={'width': '50%', 'display': 'inline-block'}),
 
         html.Div([
-            dcc.Graph(id='spectrogram'),
-        ], style={'width': '30%', 'display': 'inline-block', 'vertical-align': 'top'}),
+            dash_table.DataTable(
+                id='table',
+                columns=[{'name': col, 'id': col} for col in df_transposed.columns],
+                data=df_transposed.to_dict('records'),
+                page_current=0,
+                page_size=20,
+                style_table={'height': '400px', 'overflowY': 'auto'},
+                style_cell={'textAlign': 'center', 'minWidth': '100px'},
+                style_header={'backgroundColor': 'lightgrey', 'fontWeight': 'bold'},
+            ),
+        ], style={'width': '40%', 'display': 'inline-block', 'verticalAlign': 'top', 'marginTop': '100px'}),
+
     ])
 
     @app.callback(
@@ -196,7 +198,6 @@ def create_dash_app(config):
         df = load_data(trk_id, rec_name)
         options = [{'label': col, 'value': col} for col in df.columns if col not in config['2d_scatter_defaults']]
         return options
-
 
     @app.callback(
         Output('2d-multigraph', 'figure'),
@@ -240,7 +241,8 @@ def create_dash_app(config):
     )
     def update_3dscatter(clickData_2d, trk_id, rec_name):
         df = load_data(trk_id, rec_name)
-        selected_points = [p['pointNumber'] for p in clickData_2d['points']] if clickData_2d and 'points' in clickData_2d else []
+        selected_points = [p['pointNumber'] for p in
+                           clickData_2d['points']] if clickData_2d and 'points' in clickData_2d else []
 
         scatter_trace = go.Scatter3d(
             x=df['x'],
@@ -333,15 +335,24 @@ def create_dash_app(config):
     )
     def update_table(clickData_2d, trk_id, rec_name):
         df = load_data(trk_id, rec_name)
-        if not clickData_2d or 'points' not in clickData_2d or not clickData_2d['points']:
-            return empty_df.to_dict('records')
+        try:
+            if not clickData_2d or 'points' not in clickData_2d or not clickData_2d['points']:
+                return []  # Return an empty array if there is no data
 
-        point_number = clickData_2d['points'][0]['pointNumber']
+            point_number = clickData_2d['points'][0]['pointNumber']
 
-        # Extracting relevant data from the loaded DataFrame
-        relevant_data = df.iloc[[point_number]].to_dict('records')
+            if point_number < 0 or point_number >= len(df):
+                return []  # Return an empty array if pointNumber is out of range
 
-        return relevant_data
+            # Extracting relevant data from the loaded DataFrame
+            relevant_df = pd.DataFrame(df.iloc[[point_number]])
+            df_transposed = relevant_df.T.reset_index()
+            df_transposed.columns = ['Attribute', 'Value']
+            data = df_transposed.to_dict('records')
+            return data
+
+        except Exception as e:
+            return []  # Return an empty array in case of an error
 
     return app
 
@@ -356,9 +367,8 @@ def main():
     }
 
     app = create_dash_app(config)
-    app.run_server(debug=False)
+    app.run_server(debug=True)
 
 
 if __name__ == '__main__':
     main()
-    
