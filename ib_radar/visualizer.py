@@ -7,6 +7,13 @@ import numpy as np
 from dash import dash_table
 from matplotlib import pyplot as plt
 
+# Constants for column names
+time = 't'
+x_pos = 'x'
+y_pos = 'y'
+z_pos = 'z'
+
+# Dummy data for testing
 data = {
     'rec_name': [1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3],
     'trk_id': [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 6],
@@ -14,13 +21,15 @@ data = {
 }
 df_summary = pd.DataFrame(data)
 
-# Constants
+# Constants for dropdown options
 ALL_TRK_IDS = df_summary.trk_id.tolist()
 ALL_REC_NAMES = df_summary.rec_name.tolist()
-ALL_CLASS_NAMES = df_summary.class_name.tolist()
 
 
 def generate_spectrogram(bsn, dwell_id, channel_id, trk_id, rec_name):
+    """
+    Generate a spectrogram figure.
+    """
     duration = 5
     sampling_rate = 44100
     frequency_range = (20, 20000)
@@ -117,11 +126,9 @@ def create_dash_app(config):
     """
     app = dash.Dash(__name__)
     df_transposed = pd.DataFrame({'Attribute': [None], 'Value': [None]})
-    print('Creating Dash app')
-    columns = [{'name': col, 'id': col} for col in df_transposed.columns],
-    data = df_transposed.to_dict('records')
 
     app.layout = html.Div([
+        # Left side layout
         html.Div([
             dcc.Dropdown(
                 id='rec-name-selector',
@@ -136,8 +143,9 @@ def create_dash_app(config):
                 placeholder="Select Track ID"
             ),
             dcc.Graph(id='3d-scatter'),
-        ], style={'width': '49%', 'display': 'inline-block'}),
+        ], style={'width': '45%', 'display': 'inline-block'}),
 
+        # Right side layout
         html.Div([
             dcc.Dropdown(
                 id='column-selector',
@@ -146,14 +154,15 @@ def create_dash_app(config):
                 placeholder="Select Columns"
             ),
             dcc.Graph(id='2d-multigraph'),
-        ], style={'width': '49%', 'display': 'inline-block'}),
+        ], style={'width': '45%', 'display': 'inline-block', 'verticalAlign': 'top'}),
 
-
+        # Bottom layout
         html.Div([
             dcc.Graph(id='heatmap'),
             dcc.Graph(id='spectrogram'),
         ], style={'width': '50%', 'display': 'inline-block'}),
 
+        # Table layout
         html.Div([
             dash_table.DataTable(
                 id='table',
@@ -166,9 +175,9 @@ def create_dash_app(config):
                 style_header={'backgroundColor': 'lightgrey', 'fontWeight': 'bold'},
             ),
         ], style={'width': '40%', 'display': 'inline-block', 'verticalAlign': 'top', 'marginTop': '100px'}),
-
     ])
 
+    # Callback to update rec-name dropdown based on trk-id selection
     @app.callback(
         Output('rec-name-selector', 'options'),
         [Input('trk-id-selector', 'value')]
@@ -178,7 +187,7 @@ def create_dash_app(config):
         options = [{'label': rec_name, 'value': rec_name} for rec_name in rec_names]
         return options
 
-    # update the trk_id-dropdown options based on the selected rec_name
+    # Callback to update trk-id dropdown based on rec-name selection
     @app.callback(
         Output('trk-id-selector', 'options'),
         [Input('rec-name-selector', 'value')]
@@ -188,7 +197,7 @@ def create_dash_app(config):
         options = [{'label': str(trk_id), 'value': trk_id} for trk_id in trk_ids]
         return options
 
-    # Callbacks
+    # Callback to update column-selector dropdown based on trk-id and rec-name selections
     @app.callback(
         Output('column-selector', 'options'),
         [Input('trk-id-selector', 'value'),
@@ -199,15 +208,15 @@ def create_dash_app(config):
         options = [{'label': col, 'value': col} for col in df.columns if col not in config['2d_scatter_defaults']]
         return options
 
+    # Callback to update 2D multigraph based on clickData and other selections
     @app.callback(
         Output('2d-multigraph', 'figure'),
         [Input('3d-scatter', 'clickData'),
          Input('column-selector', 'value'),
-         Input('2d-multigraph', 'relayoutData'),
          Input('trk-id-selector', 'value'),
          Input('rec-name-selector', 'value')]
     )
-    def update_multigraph(clickData, selected_columns, relayoutData, trk_id, rec_name):
+    def update_multigraph(clickData, selected_columns, trk_id, rec_name):
         df = load_data(trk_id, rec_name)
         if selected_columns is None:
             selected_columns = []
@@ -215,7 +224,7 @@ def create_dash_app(config):
 
         # More efficient to calculate min and max once
         for col in selected_columns:
-            polyline_trace = go.Scatter(x=df['t'], y=df[col], mode='lines+markers',
+            polyline_trace = go.Scatter(x=df[time], y=df[col], mode='lines+markers',
                                         name=f'{col} (Polyline)', line=dict(width=2),
                                         visible=True if col in selected_columns else 'legendonly')
             traces.append(polyline_trace)
@@ -233,6 +242,7 @@ def create_dash_app(config):
 
         return {'data': traces, 'layout': layout}
 
+    # Callback to update 3D scatter plot based on clickData_2d and other selections
     @app.callback(
         Output('3d-scatter', 'figure'),
         [Input('2d-multigraph', 'clickData'),
@@ -245,9 +255,9 @@ def create_dash_app(config):
                            clickData_2d['points']] if clickData_2d and 'points' in clickData_2d else []
 
         scatter_trace = go.Scatter3d(
-            x=df['x'],
-            y=df['y'],
-            z=df['z'],
+            x=df[x_pos],
+            y=df[y_pos],
+            z=df[z_pos],
             mode='markers',
             marker=dict(
                 size=4,
@@ -257,27 +267,27 @@ def create_dash_app(config):
         )
 
         line_trace = go.Scatter3d(
-            x=df['x'],
-            y=df['y'],
-            z=df['z'],
+            x=df[x_pos],
+            y=df[y_pos],
+            z=df[z_pos],
             mode='lines',
             line=dict(color='grey', width=3),
             visible=True if selected_points else 'legendonly'
         )
 
         start_point_trace = go.Scatter3d(
-            x=[df['x'].iloc[0]],
-            y=[df['y'].iloc[0]],
-            z=[df['z'].iloc[0]],
+            x=[df[x_pos].iloc[0]],
+            y=[df[y_pos].iloc[0]],
+            z=[df[z_pos].iloc[0]],
             mode='markers',
             marker=dict(size=8, color='green'),
             name='Start Point'
         )
 
         end_point_trace = go.Scatter3d(
-            x=[df['x'].iloc[-1]],
-            y=[df['y'].iloc[-1]],
-            z=[df['z'].iloc[-1]],
+            x=[df[x_pos].iloc[-1]],
+            y=[df[y_pos].iloc[-1]],
+            z=[df[z_pos].iloc[-1]],
             mode='markers',
             marker=dict(size=8, color='orange'),
             name='End Point'
@@ -291,6 +301,7 @@ def create_dash_app(config):
 
         return {'data': [scatter_trace, line_trace, start_point_trace, end_point_trace], 'layout': layout}
 
+    # Callback to update heatmap based on 2D multigraph clickData and other selections
     @app.callback(
         Output('heatmap', 'figure'),
         [Input('2d-multigraph', 'clickData'),
@@ -309,6 +320,7 @@ def create_dash_app(config):
         heatmap_fig = generate_heatmap_figure(bsn, dwell_id, channel_id, trk_id, rec_name)
         return heatmap_fig
 
+    # Callback to update spectrogram based on 2D multigraph clickData and other selections
     @app.callback(
         Output('spectrogram', 'figure'),
         [Input('2d-multigraph', 'clickData'),
@@ -327,6 +339,7 @@ def create_dash_app(config):
         heatmap_fig = generate_heatmap_figure(bsn, dwell_id, channel_id, trk_id, rec_name)
         return heatmap_fig
 
+    # Callback to update table based on 2D multigraph clickData and other selections
     @app.callback(
         Output('table', 'data'),
         [Input('2d-multigraph', 'clickData'),
