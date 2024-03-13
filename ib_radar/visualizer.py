@@ -7,59 +7,58 @@ import numpy as np
 from dash import dash_table
 from matplotlib import pyplot as plt
 
-# Constants for column names
 time = 't'
 x_pos = 'x'
-y_pos = 'y'
-z_pos = 'z'
+y_pos = 'x'
+z_pos = 'x'
+BSN = 'bsn'
+DWELL_ID = 'dwell_id'
+CHNL_ID = 'channel_id'
 
-# Dummy data for testing
+
 data = {
     'rec_name': [1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3],
-    'trk_id': [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 6],
+    'track_id': [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 6],
     'class_name': ['x', 'd', 'sd', 'd', 'x', 'x', 'd', 'sd', 'd', 'x', 'x', 'd', 'sd', 'd', 'x', 'd']
 }
 df_summary = pd.DataFrame(data)
 
-# Constants for dropdown options
-ALL_TRK_IDS = df_summary.trk_id.tolist()
+# Constants
+ALL_TRK_IDS = df_summary.track_id.tolist()
 ALL_REC_NAMES = df_summary.rec_name.tolist()
 
 
 def generate_spectrogram(bsn, dwell_id, channel_id, trk_id, rec_name):
     """
-    Generate a spectrogram figure.
+    Generate a random heatmap figure.
     """
-    duration = 5
-    sampling_rate = 44100
-    frequency_range = (20, 20000)
-    num_frequencies = 512
+    bsn = int(bsn * 1000)
+    dwell_id = int(dwell_id * 1000)
+    channel_id = int(channel_id * 1000)
 
-    # Generate a random signal
-    t = np.linspace(0, duration, int(sampling_rate * duration), endpoint=False)
-    signal = np.random.uniform(-1, 1, len(t))
+    np.random.seed(bsn + dwell_id + channel_id + trk_id)
 
-    # Create spectrogram
-    f, t, Sxx = plt.specgram(signal, NFFT=512, Fs=sampling_rate, noverlap=256, mode='psd')
+    # Choose a random method for generating heatmap data
+    method = np.random.choice(['random', 'sin_wave', 'checkerboard'])
 
-    # Create Plotly figure
-    fig = go.Figure()
+    if method == 'random':
+        heatmap_data = np.random.rand(10, 10)
+    elif method == 'sin_wave':
+        x = np.linspace(0, 2 * np.pi, 10)
+        y = np.sin(x)
+        heatmap_data = np.outer(y, y)
+    elif method == 'checkerboard':
+        heatmap_data = np.zeros((10, 10))
+        heatmap_data[::2, ::2] = 1
+        heatmap_data[1::2, 1::2] = 1
 
-    # Add heatmap trace for the spectrogram
-    fig.add_trace(go.Heatmap(
-        x=t,
-        y=f,
-        z=10 * np.log10(Sxx),  # Convert to dB for better visualization
-        colorscale='Viridis',
-        zmin=-40,  # Adjust the color scale range as needed
-        zmax=10
-    ))
-
-    # Set axis labels and title
-    fig.update_layout(
-        xaxis_title='Time (s)',
-        yaxis_title='Frequency (Hz)'
+    layout = go.Layout(
+        xaxis=dict(title='Doppler'),
+        yaxis=dict(title='Range'),
     )
+    heatmap_trace = go.Heatmap(z=heatmap_data, colorscale='Viridis')
+
+    fig = go.Figure(data=[heatmap_trace], layout=layout)
 
     return fig
 
@@ -116,7 +115,7 @@ def load_data(trk_id, rec_name):
     dwell_id = np.linspace(0, 2, 30)
     channel_id = np.linspace(0, 2, 30)
     df = pd.DataFrame({'t': t, 'x': x, 'y': y, 'z': z, 'vx': vx, 'vy': vy, 'vz': vz, 'p': p,
-                       'rec_name': rec_name, 'bsn': bsn, 'dwell_id': dwell_id, 'channel_id': channel_id})
+                       'rec_name': rec_name, BSN: bsn, DWELL_ID: dwell_id,CHNL_ID: channel_id})
     return df
 
 
@@ -126,26 +125,22 @@ def create_dash_app(config):
     """
     app = dash.Dash(__name__)
     df_transposed = pd.DataFrame({'Attribute': [None], 'Value': [None]})
-
     app.layout = html.Div([
-        # Left side layout
         html.Div([
             dcc.Dropdown(
                 id='rec-name-selector',
-                options=[{'label': rec_name, 'value': rec_name} for rec_name in ALL_REC_NAMES],
+                options=[{'label': str(rec_name), 'value': rec_name} for rec_name in ALL_REC_NAMES],
                 value=ALL_REC_NAMES[0],
                 placeholder="Select Rec Name"
             ),
             dcc.Dropdown(
                 id='trk-id-selector',
-                options=[{'label': str(trk_id), 'value': trk_id} for trk_id in ALL_TRK_IDS],
+                options=[{'label': str(track_id), 'value': track_id} for track_id in ALL_TRK_IDS],
                 value=ALL_TRK_IDS[0],
                 placeholder="Select Track ID"
             ),
             dcc.Graph(id='3d-scatter'),
         ], style={'width': '45%', 'display': 'inline-block'}),
-
-        # Right side layout
         html.Div([
             dcc.Dropdown(
                 id='column-selector',
@@ -156,13 +151,11 @@ def create_dash_app(config):
             dcc.Graph(id='2d-multigraph'),
         ], style={'width': '45%', 'display': 'inline-block', 'verticalAlign': 'top'}),
 
-        # Bottom layout
         html.Div([
             dcc.Graph(id='heatmap'),
             dcc.Graph(id='spectrogram'),
         ], style={'width': '50%', 'display': 'inline-block'}),
 
-        # Table layout
         html.Div([
             dash_table.DataTable(
                 id='table',
@@ -177,27 +170,17 @@ def create_dash_app(config):
         ], style={'width': '40%', 'display': 'inline-block', 'verticalAlign': 'top', 'marginTop': '100px'}),
     ])
 
-    # Callback to update rec-name dropdown based on trk-id selection
-    @app.callback(
-        Output('rec-name-selector', 'options'),
-        [Input('trk-id-selector', 'value')]
-    )
-    def update_rec_name_selector(trk_id):
-        rec_names = df_summary[df_summary['trk_id'] == trk_id]['rec_name'].unique()
-        options = [{'label': rec_name, 'value': rec_name} for rec_name in rec_names]
-        return options
-
-    # Callback to update trk-id dropdown based on rec-name selection
+    # update the trk_id-dropdown options based on the selected rec_name
     @app.callback(
         Output('trk-id-selector', 'options'),
         [Input('rec-name-selector', 'value')]
     )
     def update_trk_id_selector(rec_name):
-        trk_ids = df_summary[df_summary['rec_name'] == rec_name]['trk_id'].unique()
+        trk_ids = df_summary[df_summary['rec_name'] == rec_name]['track_id'].unique()
         options = [{'label': str(trk_id), 'value': trk_id} for trk_id in trk_ids]
         return options
 
-    # Callback to update column-selector dropdown based on trk-id and rec-name selections
+    # Callbacks
     @app.callback(
         Output('column-selector', 'options'),
         [Input('trk-id-selector', 'value'),
@@ -208,7 +191,6 @@ def create_dash_app(config):
         options = [{'label': col, 'value': col} for col in df.columns if col not in config['2d_scatter_defaults']]
         return options
 
-    # Callback to update 2D multigraph based on clickData and other selections
     @app.callback(
         Output('2d-multigraph', 'figure'),
         [Input('3d-scatter', 'clickData'),
@@ -242,7 +224,6 @@ def create_dash_app(config):
 
         return {'data': traces, 'layout': layout}
 
-    # Callback to update 3D scatter plot based on clickData_2d and other selections
     @app.callback(
         Output('3d-scatter', 'figure'),
         [Input('2d-multigraph', 'clickData'),
@@ -301,7 +282,6 @@ def create_dash_app(config):
 
         return {'data': [scatter_trace, line_trace, start_point_trace, end_point_trace], 'layout': layout}
 
-    # Callback to update heatmap based on 2D multigraph clickData and other selections
     @app.callback(
         Output('heatmap', 'figure'),
         [Input('2d-multigraph', 'clickData'),
@@ -311,16 +291,17 @@ def create_dash_app(config):
     def update_heatmap_from_2d(clickData_2d, trk_id, rec_name):
         df = load_data(trk_id, rec_name)
         if not clickData_2d or 'points' not in clickData_2d or not clickData_2d['points']:
-            return generate_heatmap_figure(0, 0, 0, trk_id, rec_name)
+            bsn, dwell_id, channel_id = df.iloc[0][[BSN, DWELL_ID, CHNL_ID]]
+            heatmap_fig = generate_heatmap_figure(bsn, dwell_id, channel_id, trk_id, rec_name)
+            return heatmap_fig
 
         point_number = clickData_2d['points'][0]['pointNumber']
 
         # Extracting bsn, dwell_id, and channel_id from the loaded DataFrame
-        bsn, dwell_id, channel_id = df.iloc[point_number][['bsn', 'dwell_id', 'channel_id']]
+        bsn, dwell_id, channel_id = df.iloc[point_number][[BSN, DWELL_ID,CHNL_ID]]
         heatmap_fig = generate_heatmap_figure(bsn, dwell_id, channel_id, trk_id, rec_name)
         return heatmap_fig
 
-    # Callback to update spectrogram based on 2D multigraph clickData and other selections
     @app.callback(
         Output('spectrogram', 'figure'),
         [Input('2d-multigraph', 'clickData'),
@@ -330,16 +311,17 @@ def create_dash_app(config):
     def update_spectogram(clickData_2d, trk_id, rec_name):
         df = load_data(trk_id, rec_name)
         if not clickData_2d or 'points' not in clickData_2d or not clickData_2d['points']:
-            return generate_heatmap_figure(0, 0, 0, trk_id, rec_name)
+            bsn, dwell_id, channel_id = df.iloc[0][[BSN, DWELL_ID, CHNL_ID]]
+            spectogram_fig = generate_spectrogram(bsn, dwell_id, channel_id, trk_id, rec_name)
+            return spectogram_fig
 
         point_number = clickData_2d['points'][0]['pointNumber']
 
         # Extracting bsn, dwell_id, and channel_id from the loaded DataFrame
-        bsn, dwell_id, channel_id = df.iloc[point_number][['bsn', 'dwell_id', 'channel_id']]
-        heatmap_fig = generate_heatmap_figure(bsn, dwell_id, channel_id, trk_id, rec_name)
-        return heatmap_fig
+        bsn, dwell_id, channel_id = df.iloc[point_number][[BSN, DWELL_ID,CHNL_ID]]
+        spectogram_fig = generate_spectrogram(bsn, dwell_id, channel_id, trk_id, rec_name)
+        return spectogram_fig
 
-    # Callback to update table based on 2D multigraph clickData and other selections
     @app.callback(
         Output('table', 'data'),
         [Input('2d-multigraph', 'clickData'),
