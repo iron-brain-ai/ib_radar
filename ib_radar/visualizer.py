@@ -157,7 +157,7 @@ def create_dash_app(config):
 
         html.Div([
             dcc.Graph(id='table'),
-        ], style={'width': '48%', 'display': 'inline-block', 'verticalAlign': 'top'})
+        ], style={'width': '48%', 'display': 'inline-block', 'verticalAlign': 'top', 'height': '100vh'})
     ])
 
     # update the trk_id-dropdown options based on the selected rec_name
@@ -343,6 +343,7 @@ def create_dash_app(config):
             header=dict(values=header_values),
             cells=dict(values=cell_values)
         )])
+        table_fig.update_layout(height=800)
         return table_fig
 
     return app
