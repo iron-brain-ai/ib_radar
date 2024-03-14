@@ -1,11 +1,10 @@
 import dash
 from dash import dcc, html, Input, Output
 import plotly.graph_objs as go
-
+import numpy as np
 import pandas as pd
 import numpy as np
-from dash import dash_table
-from matplotlib import pyplot as plt
+
 
 time = 't'
 x_pos = 'x'
@@ -154,20 +153,11 @@ def create_dash_app(config):
         html.Div([
             dcc.Graph(id='heatmap'),
             dcc.Graph(id='spectrogram'),
-        ], style={'width': '50%', 'display': 'inline-block'}),
+        ], style={'width': '48%', 'display': 'inline-block'}),
 
         html.Div([
-            dash_table.DataTable(
-                id='table',
-                columns=[{'name': col, 'id': col} for col in df_transposed.columns],
-                data=df_transposed.to_dict('records'),
-                page_current=0,
-                page_size=20,
-                style_table={'height': '400px', 'overflowY': 'auto'},
-                style_cell={'textAlign': 'center', 'minWidth': '100px'},
-                style_header={'backgroundColor': 'lightgrey', 'fontWeight': 'bold'},
-            ),
-        ], style={'width': '40%', 'display': 'inline-block', 'verticalAlign': 'top', 'marginTop': '100px'}),
+            dcc.Graph(id='table'),
+        ], style={'width': '48%', 'display': 'inline-block', 'verticalAlign': 'top'})
     ])
 
     # update the trk_id-dropdown options based on the selected rec_name
@@ -323,31 +313,37 @@ def create_dash_app(config):
         return spectogram_fig
 
     @app.callback(
-        Output('table', 'data'),
+        Output('table', 'figure'),
         [Input('2d-multigraph', 'clickData'),
          Input('trk-id-selector', 'value'),
          Input('rec-name-selector', 'value')]
     )
     def update_table(clickData_2d, trk_id, rec_name):
         df = load_data(trk_id, rec_name)
-        try:
-            if not clickData_2d or 'points' not in clickData_2d or not clickData_2d['points']:
-                return []  # Return an empty array if there is no data
-
-            point_number = clickData_2d['points'][0]['pointNumber']
-
-            if point_number < 0 or point_number >= len(df):
-                return []  # Return an empty array if pointNumber is out of range
-
+        if not clickData_2d or 'points' not in clickData_2d or not clickData_2d['points']:
             # Extracting relevant data from the loaded DataFrame
+            relevant_df = pd.DataFrame(df.iloc[[0]])
+            df_transposed = relevant_df.T.reset_index()
+            df_transposed.columns = ['Attribute', 'Value']
+
+        else:
+            # Extracting relevant data from the loaded DataFrame
+            point_number = clickData_2d['points'][0]['pointNumber']
             relevant_df = pd.DataFrame(df.iloc[[point_number]])
             df_transposed = relevant_df.T.reset_index()
             df_transposed.columns = ['Attribute', 'Value']
-            data = df_transposed.to_dict('records')
-            return data
 
-        except Exception as e:
-            return []  # Return an empty array in case of an error
+        condition = df_transposed['Value'].apply(type).apply(lambda x: x not in [list, pd.DataFrame, np.ndarray])
+        df_transposed = df_transposed.loc[condition]
+
+        header_values = df_transposed.columns
+        cell_values = [df_transposed[col] for col in df_transposed.columns]
+
+        table_fig = go.Figure(data=[go.Table(
+            header=dict(values=header_values),
+            cells=dict(values=cell_values)
+        )])
+        return table_fig
 
     return app
 
