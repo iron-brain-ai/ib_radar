@@ -62,7 +62,7 @@ def create_layout(df_summary, total_class_counts, det_counts, total_rec_counts):
                 id='class-and-det-distribution',
                 figure=go.Figure(data=[
                     # Create a bar chart for the distribution of classes blue and green
-                    go.Bar(name='Class Distribution', x=total_class_counts.index, y=total_class_counts),
+                    go.Bar(name='Track by class', x=total_class_counts.index, y=total_class_counts),
                     go.Bar(name='Detections by Class', x=det_counts[class_name], y=det_counts['detections_count'])
                 ],
                     layout=go.Layout(
@@ -88,9 +88,10 @@ def create_layout(df_summary, total_class_counts, det_counts, total_rec_counts):
                 data=df_summary.to_dict('records'),
                 style_table={'overflowX': 'scroll'},
                 filter_action="native",  # Enables filtering
-                sort_action="native"  # Enables sorting
+                sort_action="native",  # Enables sorting
+                page_size=10  # Number of rows per page
             )
-        ], style={'width': '100%', 'display': 'inline-block', 'verticalAlign': 'top'}),
+        ], style={'width': '50%', 'display': 'inline-block', 'verticalAlign': 'top'}),
     ])
 
     return app
